@@ -1,0 +1,49 @@
+- name: Update apt cache if needed
+  apt: update_cache=yes cache_valid_time=3600
+
+- name: Upgrade OS
+  apt: upgrade=dist force=yes
+
+- name: Install needed packages
+  apt: pkg={{item}} state=installed
+  with_items:
+    - cron
+    - logrotate
+    - curl
+    - git
+    - update-motd
+
+- name: Create the deploy user
+  user: name={{user}} comment="deploy user" generate_ssh_key=yes ssh_key_bits=2048 state=present password={{password}} shell=/bin/bash
+
+- name: Set {{user}} as sudoer
+  lineinfile:
+    dest: "/etc/sudoers"
+    line: "{{user}} ALL=(ALL) NOPASSWD: ALL"
+
+# give login user sudo
+- block:
+  - name: create temporary sudoers file for login user
+    copy:
+      dest: "/tmp/sudoers_{{ user }}.edit"
+      content: "{{ user }} ALL=(ALL) NOPASSWD: ALL"
+
+  - name: validate and implement edits
+    copy:
+      src: "/tmp/sudoers_{{ user }}.edit"
+      dest: "/etc/sudoers.d/{{ user }}"
+      validate: 'visudo -cf %s'
+      remote_src: true
+      mode: "u=r,g=r,o-rwx" #0440
+
+  - name: cleanup temp file
+    file:
+      path: "/tmp/sudoers_{{ user }}.edit"
+      state: absent
+
+  become: true
+  when: false
+# ...end block
+
+- name: remove ubuntu's user
+  user: name=ubuntu state=absent remove=yes

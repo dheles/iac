@@ -1,0 +1,5 @@
+---
+- name: Install needed packages
+  apt: pkg={{item}} state=installed
+  with_items:
+    - apache2
